@@ -17,9 +17,9 @@ dist/
 build/
 
 # Model files (uncomment if you don't want to track large model files)
-*.pth
-#*.onnx
-*.pb
+# *.pth
+# *.onnx
+# *.pb
 web_model_tfjs/
 tf_saved_model/
 
