@@ -1,0 +1,24 @@
+{
+  "name": "plant-disease-detector",
+  "version": "1.0.0",
+  "description": "PWA para detecção de doenças em plantas usando TensorFlow.js e câmera",
+  "type": "module",
+  "scripts": {
+    "serve": "http-server public -p 8080 -c-1 --cors",
+    "convert": "python scripts/export_onnx.py && python scripts/convert_tfjs.py"
+  },
+  "keywords": [
+    "plant-disease",
+    "tensorflowjs",
+    "pwa",
+    "computer-vision"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.15.0"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

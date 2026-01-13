@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="Detecção de doenças em plantas usando IA e câmera">
+  <meta name="theme-color" content="#4CAF50">
+  
+  <title>Detecção de Doenças em Plantas (ONNX)</title>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="./manifest.json">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="./icons/icon-192.png">
+  
+  <!-- ONNX Runtime Web -->
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      color: #333;
+    }
+    
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      overflow: hidden;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+      color: white;
+      padding: 30px 20px;
+      text-align: center;
+    }
+    
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+    
+    .header p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+    
+    .content {
+      padding: 20px;
+    }
+    
+    .status {
+      text-align: center;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .status.loading {
+      background: #e3f2fd;
+      color: #1976d2;
+    }
+    
+    .status.error {
+      background: #ffebee;
+      color: #c62828;
+    }
+    
+    .status.success {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    
+    .video-container {
+      position: relative;
+      width: 100%;
+      background: #000;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 20px;
+      aspect-ratio: 4/3;
+    }
+    
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+    
+    #video.active {
+      display: block;
+    }
+    
+    .video-placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #999;
+      font-size: 16px;
+    }
+    
+    #video.active + .video-placeholder {
+      display: none;
+    }
+    
+    canvas {
+      display: none;
+    }
+    
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    button {
+      padding: 15px 20px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      background: #4CAF50;
+      color: white;
+    }
+    
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+    }
+    
+    button:active:not(:disabled) {
+      transform: translateY(0);
+    }
+    
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    
+    button.secondary {
+      background: #2196F3;
+    }
+    
+    button.danger {
+      background: #f44336;
+    }
+    
+    button.warning {
+      background: #ff9800;
+    }
+    
+    .result-container {
+      background: #f5f5f5;
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 20px;
+      min-height: 150px;
+    }
+    
+    .result-container.hidden {
+      display: none;
+    }
+    
+    .result-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 15px;
+      color: #333;
+    }
+    
+    .result-item {
+      margin-bottom: 12px;
+    }
+    
+    .result-label {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 5px;
+    }
+    
+    .result-value {
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    .confidence-bar {
+      width: 100%;
+      height: 30px;
+      background: #e0e0e0;
+      border-radius: 15px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    
+    .confidence-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4CAF50 0%, #8BC34A 100%);
+      transition: width 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    
+    .health-status {
+      display: inline-block;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+    
+    .health-status.healthy {
+      background: #4CAF50;
+      color: white;
+    }
+    
+    .health-status.disease {
+      background: #f44336;
+      color: white;
+    }
+    
+    .loading-spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 10px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .continuous-mode {
+      margin-top: 10px;
+      text-align: center;
+    }
+    
+    .continuous-mode label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🌿 Detecção de Doenças em Plantas</h1>
+      <p>Use sua câmera para identificar doenças em plantas (ONNX Runtime)</p>
+    </div>
+    
+    <div class="content">
+      <div id="status" class="status loading">
+        <span class="loading-spinner"></span>
+        Carregando modelo...
+      </div>
+      
+      <div class="video-container">
+        <video id="video" autoplay playsinline></video>
+        <div class="video-placeholder">
+          Clique em "Iniciar Câmera" para começar
+        </div>
+      </div>
+      
+      <canvas id="canvas"></canvas>
+      
+      <div class="controls">
+        <button id="btnStartCamera" class="secondary">Iniciar Câmera</button>
+        <button id="btnStopCamera" class="danger" disabled>Parar Câmera</button>
+        <button id="btnCapture" disabled>Capturar Foto</button>
+        <button id="btnSwitchCamera" class="warning" disabled>Trocar Câmera</button>
+      </div>
+      
+      <div class="continuous-mode">
+        <label>
+          <input type="checkbox" id="continuousMode">
+          Modo Contínuo (detecção automática)
+        </label>
+      </div>
+      
+      <div id="resultContainer" class="result-container hidden">
+        <div class="result-title">Resultado da Detecção</div>
+        
+        <div class="result-item">
+          <div class="result-label">Doença Detectada:</div>
+          <div class="result-value" id="resultDisease">-</div>
+        </div>
+        
+        <div class="result-item">
+          <div class="result-label">Planta:</div>
+          <div class="result-value" id="resultPlant">-</div>
+        </div>
+        
+        <div class="result-item">
+          <div class="result-label">Confiança:</div>
+          <div class="confidence-bar">
+            <div class="confidence-fill" id="confidenceFill" style="width: 0%">0%</div>
+          </div>
+        </div>
+        
+        <div id="healthStatus" class="health-status" style="display: none;"></div>
+      </div>
+    </div>
+  </div>
+  
+  <script type="module">
+    // Importar módulos
+    import { initCamera, stopCamera, captureFrame, switchCamera, isCameraAvailable } from './src/camera.js';
+    import { loadClassNames, formatClassName } from './src/inference.js';
+    
+    const ort = window.ort;
+    
+    // Elementos DOM
+    const statusEl = document.getElementById('status');
+    const videoEl = document.getElementById('video');
+    const canvasEl = document.getElementById('canvas');
+    const btnStartCamera = document.getElementById('btnStartCamera');
+    const btnStopCamera = document.getElementById('btnStopCamera');
+    const btnCapture = document.getElementById('btnCapture');
+    const btnSwitchCamera = document.getElementById('btnSwitchCamera');
+    const continuousModeCheckbox = document.getElementById('continuousMode');
+    const resultContainer = document.getElementById('resultContainer');
+    const resultDisease = document.getElementById('resultDisease');
+    const resultPlant = document.getElementById('resultPlant');
+    const confidenceFill = document.getElementById('confidenceFill');
+    const healthStatus = document.getElementById('healthStatus');
+    
+    // Estado da aplicação
+    let session = null;
+    let classNames = null;
+    let isCameraActive = false;
+    let isContinuousMode = false;
+    let continuousModeInterval = null;
+    let lastInferenceTime = 0;
+    const INFERENCE_THROTTLE_MS = 500;
+    
+    // Valores de normalização ImageNet
+    const IMAGENET_MEAN = [0.485, 0.456, 0.406];
+    const IMAGENET_STD = [0.229, 0.224, 0.225];
+    
+    // Funções auxiliares
+    function updateStatus(message, type = 'loading') {
+      statusEl.textContent = message;
+      statusEl.className = `status ${type}`;
+    }
+    
+    function preprocessImage(canvas) {
+      const ctx = canvas.getContext('2d');
+      const imageData = ctx.getImageData(0, 0, 224, 224);
+      const data = imageData.data;
+      
+      // Converter para tensor [1, 3, 224, 224] (NCHW format para ONNX)
+      const tensor = new Float32Array(1 * 3 * 224 * 224);
+      
+      for (let i = 0; i < 224 * 224; i++) {
+        const r = data[i * 4] / 255.0;
+        const g = data[i * 4 + 1] / 255.0;
+        const b = data[i * 4 + 2] / 255.0;
+        
+        // Normalizar e reorganizar para NCHW
+        tensor[i] = (r - IMAGENET_MEAN[0]) / IMAGENET_STD[0]; // R
+        tensor[i + 224 * 224] = (g - IMAGENET_MEAN[1]) / IMAGENET_STD[1]; // G
+        tensor[i + 224 * 224 * 2] = (b - IMAGENET_MEAN[2]) / IMAGENET_STD[2]; // B
+      }
+      
+      return new ort.Tensor('float32', tensor, [1, 3, 224, 224]);
+    }
+    
+    function softmax(arr) {
+      const max = Math.max(...arr);
+      const exp = arr.map(x => Math.exp(x - max));
+      const sum = exp.reduce((a, b) => a + b, 0);
+      return exp.map(x => x / sum);
+    }
+    
+    function showResult(result) {
+      const formatted = formatClassName(result.className);
+      
+      resultDisease.textContent = formatted.disease;
+      resultPlant.textContent = formatted.plant;
+      
+      const confidencePercent = Math.round(result.confidence * 100);
+      confidenceFill.style.width = `${confidencePercent}%`;
+      confidenceFill.textContent = `${confidencePercent}%`;
+      
+      if (formatted.isHealthy) {
+        healthStatus.textContent = '✓ Planta Saudável';
+        healthStatus.className = 'health-status healthy';
+        healthStatus.style.display = 'block';
+      } else {
+        healthStatus.textContent = '⚠ Doença Detectada';
+        healthStatus.className = 'health-status disease';
+        healthStatus.style.display = 'block';
+      }
+      
+      resultContainer.classList.remove('hidden');
+    }
+    
+    async function performInference() {
+      if (!session || !isCameraActive || videoEl.readyState !== videoEl.HAVE_ENOUGH_DATA) {
+        return;
+      }
+      
+      const now = Date.now();
+      if (now - lastInferenceTime < INFERENCE_THROTTLE_MS) {
+        return;
+      }
+      lastInferenceTime = now;
+      
+      try {
+        // Capturar frame
+        captureFrame(videoEl, canvasEl, 224, 224);
+        
+        // Pré-processar
+        const inputTensor = preprocessImage(canvasEl);
+        
+        // Inferência
+        const feeds = { input: inputTensor };
+        const results = await session.run(feeds);
+        
+        // Obter logits (primeiro output)
+        const logits = results[Object.keys(results)[0]].data;
+        
+        // Aplicar softmax
+        const probabilities = softmax(Array.from(logits));
+        
+        // Encontrar índice da classe com maior probabilidade
+        let maxIndex = 0;
+        let maxProb = probabilities[0];
+        for (let i = 1; i < probabilities.length; i++) {
+          if (probabilities[i] > maxProb) {
+            maxProb = probabilities[i];
+            maxIndex = i;
+          }
+        }
+        
+        // Mapear para nome da classe
+        const className = classNames && classNames[maxIndex] 
+          ? classNames[maxIndex] 
+          : `Classe ${maxIndex}`;
+        
+        // Exibir resultado
+        showResult({
+          index: maxIndex,
+          className: className,
+          confidence: maxProb
+        });
+        
+      } catch (error) {
+        console.error('Erro na inferência:', error);
+        updateStatus('Erro ao processar imagem', 'error');
+      }
+    }
+    
+    function startContinuousMode() {
+      if (continuousModeInterval) {
+        clearInterval(continuousModeInterval);
+      }
+      
+      continuousModeInterval = setInterval(() => {
+        if (isContinuousMode && isCameraActive) {
+          performInference();
+        }
+      }, INFERENCE_THROTTLE_MS);
+    }
+    
+    function stopContinuousMode() {
+      if (continuousModeInterval) {
+        clearInterval(continuousModeInterval);
+        continuousModeInterval = null;
+      }
+    }
+    
+    // Event Listeners
+    btnStartCamera.addEventListener('click', async () => {
+      if (!isCameraAvailable()) {
+        updateStatus('Câmera não disponível neste dispositivo', 'error');
+        return;
+      }
+      
+      try {
+        updateStatus('Iniciando câmera...', 'loading');
+        await initCamera(videoEl);
+        
+        isCameraActive = true;
+        videoEl.classList.add('active');
+        btnStartCamera.disabled = true;
+        btnStopCamera.disabled = false;
+        btnCapture.disabled = false;
+        btnSwitchCamera.disabled = false;
+        
+        updateStatus('Câmera ativa - Pronto para capturar', 'success');
+        
+        if (isContinuousMode) {
+          startContinuousMode();
+        }
+        
+      } catch (error) {
+        updateStatus(error.message, 'error');
+      }
+    });
+    
+    btnStopCamera.addEventListener('click', () => {
+      stopCamera();
+      isCameraActive = false;
+      videoEl.classList.remove('active');
+      btnStartCamera.disabled = false;
+      btnStopCamera.disabled = true;
+      btnCapture.disabled = true;
+      btnSwitchCamera.disabled = true;
+      
+      stopContinuousMode();
+      updateStatus('Câmera parada', 'loading');
+    });
+    
+    btnCapture.addEventListener('click', () => {
+      performInference();
+    });
+    
+    btnSwitchCamera.addEventListener('click', async () => {
+      try {
+        updateStatus('Trocando câmera...', 'loading');
+        await switchCamera(videoEl);
+        updateStatus('Câmera trocada', 'success');
+      } catch (error) {
+        updateStatus(error.message, 'error');
+      }
+    });
+    
+    continuousModeCheckbox.addEventListener('change', (e) => {
+      isContinuousMode = e.target.checked;
+      
+      if (isContinuousMode && isCameraActive) {
+        startContinuousMode();
+      } else {
+        stopContinuousMode();
+      }
+    });
+    
+    // Inicialização
+    async function init() {
+      try {
+        // Carregar nomes das classes
+        classNames = await loadClassNames('./class_names.json');
+        
+        // Carregar modelo ONNX
+        updateStatus('Carregando modelo ONNX...', 'loading');
+        session = await ort.InferenceSession.create('./mobilenetv2_plant.onnx', {
+          executionProviders: ['webgl', 'wasm']
+        });
+        
+        updateStatus('Modelo carregado! Clique em "Iniciar Câmera"', 'success');
+        
+      } catch (error) {
+        console.error('Erro na inicialização:', error);
+        updateStatus(`Erro: ${error.message}`, 'error');
+      }
+    }
+    
+    // Registrar Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('Service Worker registrado:', reg))
+          .catch(err => console.error('Erro ao registrar Service Worker:', err));
+      });
+    }
+    
+    // Iniciar aplicação
+    init();
+  </script>
+</body>
+</html>
