@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  plant-disease-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: plant-disease-detector
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    environment:
+      - NODE_ENV=production
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
